@@ -70,4 +70,4 @@ python examples/robot_retarget.py \
    通过 `SMPLX_TO_HOLOSOMA` 映射表对52个关节逐一重排。
 
 2. **坐标系转换**：HMR4D 输出 Y-up，holosoma 期望 Z-up，
-   变换规则：`(x, y, z) → (x, z, y)`（交换 Y 和 Z 轴）。
+   变换规则：`(x, y, z) → (z, x, y)`（经实际导入验证，模型站立正确）。

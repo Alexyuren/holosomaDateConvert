@@ -148,11 +148,12 @@ def convert(input_path, output_path, model_path, gender, batch_size):
             joints_smplx     = out.joints[:n, :52, :]
             joints_reordered = joints_smplx[:, SMPLX_TO_HOLOSOMA, :]
 
-            # Step 2: Y-up (HMR4D) → Z-up (holosoma): (x,y,z) → (x,z,y)
+            # Step 2: coordinate transform (verified correct — model stands upright)
+            # (x, y, z) → (z, x, y)
             joints_batch = torch.stack([
-                joints_reordered[:, :, 0],  # x stays  (lateral)
-                joints_reordered[:, :, 2],  # new y = old z (depth)
-                joints_reordered[:, :, 1],  # new z = old y (height)
+                joints_reordered[:, :, 2],  # new axis 0 = old z (depth)
+                joints_reordered[:, :, 0],  # new axis 1 = old x (lateral)
+                joints_reordered[:, :, 1],  # new axis 2 = old y (height)
             ], dim=-1)
 
             all_joints.append(joints_batch)
