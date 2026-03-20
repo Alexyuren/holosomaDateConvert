@@ -1,84 +1,84 @@
 # SMPL → Holosoma Data Converter
 
-将标准 **SMPL 参数数据**（`body_pose` + `global_orient` + `betas` + `transl`）通过正向运动学转换为 [Holosoma Motion Retargeting](https://github.com/amazon-far/holosoma) 所需的 **SMPLH 52关节全局3D位置**格式，用于后续人形机器人动作迁移（retargeting）。
+**[中文文档](README_CN.md) | English**
+
+Convert standard **SMPL parameter data** (`body_pose` + `global_orient` + `betas` + `transl`) into the **SMPLH 52-joint global 3D position** format required by [Holosoma Motion Retargeting](https://github.com/amazon-far/holosoma), enabling humanoid robot motion retargeting.
 
 ---
 
-## 背景
+## Background
 
-[Holosoma](https://github.com/amazon-far/holosoma) 是亚马逊开源的人形机器人运动迁移框架，支持将人类运动数据迁移到 Unitree G1 等人形机器人上。其 retargeting 模块要求输入数据为 **OMOMO_new / InterMimic 格式**，即包含 **SMPLH 52个关节全局3D位置** 的 `.pt` 文件。
+[Holosoma](https://github.com/amazon-far/holosoma) is an open-source humanoid robot motion retargeting framework by Amazon, supporting motion transfer to humanoid robots such as the Unitree G1. Its retargeting module requires input data in the **OMOMO_new / InterMimic format** — a `.pt` file containing **SMPLH 52-joint global 3D positions**.
 
-本工具的输入为标准 **SMPL 参数**（24关节，包含 `body_pose`、`global_orient`、`betas`、`transl`），可来自任意 SMPL 兼容系统（如 HMR4D、CLIFF、4D-Humans 等）。
+The input to this tool is standard **SMPL parameters** (24 joints: `body_pose`, `global_orient`, `betas`, `transl`), which can come from any SMPL-compatible system (e.g., HMR4D, CLIFF, 4D-Humans, etc.).
 
-输入与 Holosoma 要求之间存在以下差异，需要转换：
+The following differences must be resolved before retargeting can proceed:
 
-| 项目 | SMPL 输入 | Holosoma 要求 |
-|------|-----------|--------------|
-| 关节数 | 24（SMPL） | 52（SMPLH） |
-| 数据形式 | 旋转参数（axis-angle） | 全局3D关节位置（米） |
-| 坐标系 | Y-up | Z-up |
-| 关节顺序 | smplx 标准顺序 | holosoma SMPLH_DEMO_JOINTS 顺序 |
-| 文件格式 | dict（含多个字段） | `[T, 591]` float32 张量 |
-
-本工具完成上述所有转换，输出可直接用于 Holosoma retargeting pipeline 的 `.pt` 文件。
+| Item | SMPL Input | Holosoma Requirement |
+|------|-----------|----------------------|
+| Joint count | 24 (SMPL) | 52 (SMPLH) |
+| Data form | Rotation parameters (axis-angle) | Global 3D joint positions (meters) |
+| Coordinate system | Y-up | Z-up |
+| Joint order | smplx standard order | holosoma SMPLH_DEMO_JOINTS order |
+| File format | dict (multiple fields) | `[T, 591]` float32 tensor |
 
 ---
 
-## 转换流程
+## Pipeline
 
 ```
-HMR4D 输出 (smpl_params_global)
+SMPL Parameters (any source)
     │
     │  body_pose (T,63) + global_orient (T,3) + betas (T,10) + transl (T,3)
     ▼
-SMPLH 正向运动学 (smplx 库)
+SMPLH Forward Kinematics  (via smplx)
     │
-    │  输出 52 个关节的全局3D坐标 (T, 52, 3)
+    │  52 joint global 3D positions  (T, 52, 3)
     ▼
-关节顺序重排
+Joint Reordering
     │
-    │  smplx 标准顺序 → holosoma SMPLH_DEMO_JOINTS 顺序
+    │  smplx standard order → holosoma SMPLH_DEMO_JOINTS order
     ▼
-坐标系转换
+Coordinate Transform
     │
-    │  Y-up (HMR4D) → Z-up (holosoma): (x,y,z) → (z,x,y)
+    │  Y-up → Z-up :  (x, y, z) → (z, x, y)
     ▼
-打包为 [T, 591] 张量
+Pack into [T, 591] tensor
     │
-    │  列 162-317: 关节位置（核心数据）
-    │  其余列: 零填充或 identity 物体位姿
+    │  cols 162-317: joint positions (core data)
+    │  other cols:   zero-padded / identity object pose
     ▼
-输出 hmr4d_holosoma.pt  ← 可直接用于 holosoma retargeting
+Output:  holosoma_ready.pt  ← ready for holosoma retargeting
 ```
 
 ---
 
-## 输出格式说明
+## Output Format
 
-输出为 `[T, 591]` float32 张量，与 Holosoma `demo_data/OMOMO_new` 数据集格式完全一致：
+The output is a `[T, 591]` float32 tensor, fully compatible with Holosoma's `demo_data/OMOMO_new` dataset:
 
-| 列范围 | 维度 | 内容 |
-|--------|------|------|
-| 0 – 161 | 162 | 全零（holosoma 不使用） |
-| **162 – 317** | **156 = 52×3** | **52个SMPLH关节全局3D坐标，Z-up，单位米** |
-| 318 – 324 | 7 | 物体位姿 `[x,y,z,qx,qy,qz,qw]`（无物体时为 identity） |
-| 325 – 590 | 266 | 全零（holosoma 不使用） |
+| Column range | Dims | Content |
+|--------------|------|---------|
+| 0 – 161 | 162 | Zeros (unused by holosoma) |
+| **162 – 317** | **156 = 52×3** | **52 SMPLH joint global 3D positions, Z-up, in meters** |
+| 318 – 324 | 7 | Object pose `[x,y,z,qx,qy,qz,qw]` (identity when no object) |
+| 325 – 590 | 266 | Zeros (unused by holosoma) |
 
-### SMPLH 52个关节顺序（holosoma SMPLH_DEMO_JOINTS）
+### SMPLH 52-joint order (holosoma SMPLH_DEMO_JOINTS)
 
 ```
  0: Pelvis        1: L_Hip       2: L_Knee      3: L_Ankle     4: L_Toe
  5: R_Hip         6: R_Knee      7: R_Ankle     8: R_Toe
  9: Torso        10: Spine      11: Chest      12: Neck       13: Head
 14: L_Thorax     15: L_Shoulder 16: L_Elbow    17: L_Wrist
-18-32: 左手指 (Index/Middle/Pinky/Ring/Thumb 各3节)
+18-32: Left hand fingers  (Index / Middle / Pinky / Ring / Thumb, 3 joints each)
 33: R_Thorax     34: R_Shoulder 35: R_Elbow    36: R_Wrist
-37-51: 右手指 (Index/Middle/Pinky/Ring/Thumb 各3节)
+37-51: Right hand fingers (Index / Middle / Pinky / Ring / Thumb, 3 joints each)
 ```
 
 ---
 
-## 安装
+## Installation
 
 ```bash
 git clone https://github.com/Alexyuren/holosomaDateConvert
@@ -86,17 +86,11 @@ cd holosomaDateConvert
 pip install -r requirements.txt
 ```
 
-### 依赖
+### SMPLH Model Files
 
-- `torch >= 2.0.0`
-- `smplx >= 0.1.28`
-- `numpy >= 1.21.0`
+SMPLH model files (`.pkl`) are required. Register and download from [MANO](https://mano.is.tue.mpg.de/).
 
-### SMPLH 模型文件
-
-需要 SMPLH 模型文件（`.pkl`），请前往 [MANO 官网](https://mano.is.tue.mpg.de/) 注册下载。
-
-下载后按如下目录结构放置：
+Place them in the following structure:
 
 ```
 /your/model/path/
@@ -107,42 +101,57 @@ pip install -r requirements.txt
 
 ---
 
-## 使用方法
+## Usage
 
 ```bash
 python convert.py \
-    --input     /path/to/hmr4d_results.pt \
-    --output    /path/to/hmr4d_holosoma.pt \
+    --input      /path/to/smpl_results.pt \
+    --output     /path/to/output.pt \
     --model_path /path/to/smplx \
-    --gender    male
+    --gender     male
 ```
 
-### 参数说明
+### Arguments
 
-| 参数 | 必填 | 默认值 | 说明 |
-|------|:----:|--------|------|
-| `--input` | ✓ | — | HMR4D 输出文件路径（`hmr4d_results.pt`） |
-| `--output` | ✓ | — | 转换后输出文件路径 |
-| `--model_path` | ✓ | — | 包含 `smplh/` 文件夹的目录路径 |
+| Argument | Required | Default | Description |
+|----------|:--------:|---------|-------------|
+| `--input` | ✓ | — | Path to input SMPL `.pt` file |
+| `--output` | ✓ | — | Path to save converted `.pt` file |
+| `--model_path` | ✓ | — | Directory containing the `smplh/` folder |
 | `--gender` | | `male` | `male` / `female` / `neutral` |
-| `--batch_size` | | `512` | 每批处理帧数，内存不足可调小 |
+| `--batch_size` | | `512` | Frames per FK batch (reduce if OOM) |
+
+### Input File Format
+
+The input `.pt` file must be a dict with the following keys under `smpl_params_global`:
+
+```python
+{
+    "smpl_params_global": {
+        "body_pose":     torch.Tensor,  # (T, 63)
+        "global_orient": torch.Tensor,  # (T, 3)
+        "betas":         torch.Tensor,  # (T, 10)
+        "transl":        torch.Tensor,  # (T, 3)
+    }
+}
+```
 
 ---
 
-## 在 Holosoma 中使用
+## Use in Holosoma
 
-转换完成后，将输出文件放入 holosoma 的数据目录，即可运行 retargeting：
+Place the output file in your holosoma data directory and run retargeting:
 
 ```bash
-# 单序列 retargeting
+# Single sequence
 python examples/robot_retarget.py \
     --data_path /path/to/data_dir \
-    --task-name hmr4d_holosoma \
+    --task-name output \
     --data_format smplh \
     --task-type robot_only \
     --retargeter.visualize
 
-# 批量处理
+# Batch processing
 python examples/parallel_robot_retarget.py \
     --data-dir /path/to/data_dir \
     --task-type robot_only \
@@ -152,9 +161,9 @@ python examples/parallel_robot_retarget.py \
 
 ---
 
-## 相关项目
+## Related Projects
 
-- [Holosoma](https://github.com/amazon-far/holosoma) — 人形机器人运动迁移框架（Amazon）
-- [smplx](https://github.com/vchoutas/smplx) — SMPL 系列模型 Python 库
-- [SMPL](https://smpl.is.tue.mpg.de/) — SMPL 人体模型（MPI）
-- [MANO](https://mano.is.tue.mpg.de/) — SMPLH 模型下载
+- [Holosoma](https://github.com/amazon-far/holosoma) — Humanoid robot motion retargeting framework (Amazon)
+- [smplx](https://github.com/vchoutas/smplx) — Python library for SMPL-family models
+- [SMPL](https://smpl.is.tue.mpg.de/) — SMPL body model (MPI)
+- [MANO](https://mano.is.tue.mpg.de/) — SMPLH model download
