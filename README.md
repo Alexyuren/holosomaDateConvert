@@ -1,6 +1,6 @@
-# HMR4D → Holosoma Data Converter
+# SMPL → Holosoma Data Converter
 
-将 [HMR4D](https://github.com/zju3dv/HMR4D) 输出的 SMPL 24关节人体运动数据，转换为 [Holosoma Motion Retargeting](https://github.com/amazon-far/holosoma) 所需的 52关节 SMPLH 数据格式，用于后续人形机器人动作迁移（retargeting）。
+将标准 **SMPL 参数数据**（`body_pose` + `global_orient` + `betas` + `transl`）通过正向运动学转换为 [Holosoma Motion Retargeting](https://github.com/amazon-far/holosoma) 所需的 **SMPLH 52关节全局3D位置**格式，用于后续人形机器人动作迁移（retargeting）。
 
 ---
 
@@ -8,14 +8,14 @@
 
 [Holosoma](https://github.com/amazon-far/holosoma) 是亚马逊开源的人形机器人运动迁移框架，支持将人类运动数据迁移到 Unitree G1 等人形机器人上。其 retargeting 模块要求输入数据为 **OMOMO_new / InterMimic 格式**，即包含 **SMPLH 52个关节全局3D位置** 的 `.pt` 文件。
 
-[HMR4D](https://github.com/zju3dv/HMR4D) 是一套从单目视频估计人体运动的系统，输出为标准 **SMPL 参数**（24关节，包含 `body_pose`、`global_orient`、`betas`、`transl`）。
+本工具的输入为标准 **SMPL 参数**（24关节，包含 `body_pose`、`global_orient`、`betas`、`transl`），可来自任意 SMPL 兼容系统（如 HMR4D、CLIFF、4D-Humans 等）。
 
-两者之间存在以下差异，需要转换：
+输入与 Holosoma 要求之间存在以下差异，需要转换：
 
-| 项目 | HMR4D 输出 | Holosoma 要求 |
+| 项目 | SMPL 输入 | Holosoma 要求 |
 |------|-----------|--------------|
 | 关节数 | 24（SMPL） | 52（SMPLH） |
-| 数据形式 | SMPL 旋转参数 | 全局3D关节位置（米） |
+| 数据形式 | 旋转参数（axis-angle） | 全局3D关节位置（米） |
 | 坐标系 | Y-up | Z-up |
 | 关节顺序 | smplx 标准顺序 | holosoma SMPLH_DEMO_JOINTS 顺序 |
 | 文件格式 | dict（含多个字段） | `[T, 591]` float32 张量 |
@@ -155,5 +155,6 @@ python examples/parallel_robot_retarget.py \
 ## 相关项目
 
 - [Holosoma](https://github.com/amazon-far/holosoma) — 人形机器人运动迁移框架（Amazon）
-- [HMR4D](https://github.com/zju3dv/HMR4D) — 单目视频人体运动估计（ZJU）
 - [smplx](https://github.com/vchoutas/smplx) — SMPL 系列模型 Python 库
+- [SMPL](https://smpl.is.tue.mpg.de/) — SMPL 人体模型（MPI）
+- [MANO](https://mano.is.tue.mpg.de/) — SMPLH 模型下载
